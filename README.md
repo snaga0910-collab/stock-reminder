@@ -1,36 +1,103 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🛒 そろそろリマインダー
 
-## Getting Started
+日用品の買い忘れを防ぐWebアプリ。**買ったら1タップ**しておくと、次に買う時期が近づいたとき **LINEに「今買うもの」が届きます**。
 
-First, run the development server:
+## 誰のため / なぜ作ったか
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+日用品の買い忘れが繰り返し起きていたが、リサーチしてみると原因は「在庫に気づいていない」ことではなかった。
+
+**家では「そろそろ無くなるな」と気づいている。それなのに、外出して店に着くと思い出せない。**
+
+```
+   家                      店
+「そろそろだな」  ━━ ✂️ ━━  「何買うんだっけ？」
+（知識はある）           （取り出せない）
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+課題は「家で持っている知識が、買える場所で取り出せない」こと。だからこのアプリは**在庫を管理しない**。やることは「次にいつ買うか」を持っておき、**期日が近づいたらLINEで思い出させる**ことだけに絞っている。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+対象は、日用品をまとめ買いする人（コストコやネットで3ヶ月に1回など、買う機会が少ない人ほど効く）。
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## スクリーンショット
 
-## Learn More
+| アプリ画面 | LINE通知 |
+|---|---|
+| （ここにアプリ画面のスクショ） | （ここにLINE通知のスクショ） |
 
-To learn more about Next.js, take a look at the following resources:
+## 主な機能
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| 機能 | 説明 |
+|---|---|
+| 品目の登録 | プリセットから選ぶだけ。**買う間隔の入力は不要**（標準周期を内蔵） |
+| 「買った」記録 | ボタン**1タップ**で購入日を記録 |
+| 次回予定日の計算 | 「最後に買った日 + 周期」から自動計算（日本時間基準） |
+| 一覧表示 | 「そろそろ買う（予定日の3日前から）」と「まだ大丈夫（あとN日）」を色分け |
+| LINE通知 | 毎朝8時に判定し、**買うものがある日だけ**送信 |
+| 合言葉 | 公開URLでも、合言葉を知らない人は使えない |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**あえてやらないこと**：在庫の個数管理、価格比較、レシート読み取り、家計簿。
+入力が重くなると使われなくなり、通知が届かず、肝心の「買い忘れ防止」が成立しなくなるため。
 
-## Deploy on Vercel
+## 技術スタック
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| 分類 | 使用技術 |
+|---|---|
+| フロントエンド | Next.js 16（App Router）/ React 19 / TypeScript |
+| スタイル | Tailwind CSS v4 |
+| データベース | Supabase（PostgreSQL）※RLS有効 |
+| 通知 | LINE Messaging API（Push Message） |
+| 定時実行 | Vercel Cron Jobs（毎日 23:00 UTC = 日本時間 8:00） |
+| ホスティング | Vercel |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+すべて**無料枠**で動作します。
+
+## 仕組み
+
+```
+[画面] プリセットから登録 → 「買った」を1タップ → 購入日を保存
+                                   │
+                        次回予定日 = 購入日 + 周期
+                                   │
+[毎朝8時] Vercel Cron → /api/cron/notify → 期日が近い品目を判定
+                                   │
+                        対象があればLINEへPush通知
+```
+
+### 設計上のポイント
+
+- **次回予定日をDBに保存しない**。`最後に買った日 + 周期` で都度計算するため、二重管理にならない
+- **RLSを有効にし、ポリシーを作らない**。公開キーからは一切読み書きできず、DB操作はサーバー側の秘密キー経由のみ
+- **対象0件の日は通知しない**。毎日届くと慣れてしまい、必要な日の通知を見落とすため
+
+## セットアップ
+
+```bash
+npm install
+cp .env.example .env.local   # 値を自分のものに置き換える
+npm run dev
+```
+
+データベースの表は [supabase/schema.sql](supabase/schema.sql) を Supabase の SQL Editor で実行して作成します。
+
+### 環境変数
+
+| 変数 | 内容 |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase の Project URL |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase の公開キー |
+| `SUPABASE_SECRET_KEY` | Supabase の秘密キー（サーバー専用） |
+| `LINE_CHANNEL_ACCESS_TOKEN` | LINE チャネルアクセストークン（サーバー専用） |
+| `LINE_USER_ID` | 通知の送信先ユーザーID |
+| `CRON_SECRET` | 定時実行APIを外部から叩かれないための照合値 |
+| `APP_PASSCODE` | アプリに入るための合言葉 |
+
+### 通知の手動テスト
+
+```bash
+curl -H "Authorization: Bearer <CRON_SECRET>" http://localhost:3000/api/cron/notify
+```
+
+## ドキュメント
+
+- [requirements.md](requirements.md) — 要件定義書（背景・ユーザーストーリー・機能要件・非機能要件）
+- [CLAUDE.md](CLAUDE.md) — Claude Code 向けのプロジェクト固有ルール
