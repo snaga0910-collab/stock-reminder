@@ -11,6 +11,7 @@ export type Item = {
   place: string | null;
   last_purchased_at: string; // "YYYY-MM-DD"
   created_at: string;
+  deleted_at: string | null; // 論理削除（元に戻せるようにするため）
 };
 
 export function getSupabase() {

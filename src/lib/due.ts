@@ -45,6 +45,14 @@ export function isSoon(lastPurchasedAt: string, cycleDays: number): boolean {
   return daysLeft(lastPurchasedAt, cycleDays) <= LEAD_DAYS;
 }
 
+/** "YYYY-MM-DD" を "10/20(火)" の形にする */
+export function formatJpDate(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const week = ["日", "月", "火", "水", "木", "金", "土"];
+  const dow = week[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+  return `${m}/${d}(${dow})`;
+}
+
 /** 最後に買ってから何日経ったか（通知文で使う） */
 export function daysSince(lastPurchasedAt: string): number {
   return Math.round(
